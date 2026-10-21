@@ -2,135 +2,605 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EU capitals — sustainable vacation ranking</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-  #recommendation { padding: 1rem; border: 2px solid #0d7c9e; border-radius: 8px; }
-  canvas { margin-top: 2rem; }
-  #updated { color: #666; font-size: 0.85rem; }
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ef;
+    --surface: #fcfcfb;
+    --border: #e4e2dc;
+    --grid: #ebe9e3;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --text-3: #7d7c77;
+    --weather: #2a78d6;      /* categorical slot 1 */
+    --co2: #1baf7a;          /* categorical slot 3 */
+    --accent: #2a78d6;
+    --seq-lo: #cde2fb;       /* sequential blue 100 */
+    --seq-hi: #104281;       /* sequential blue 650 */
+    --good: #0f7a3a;
+    --good-bg: #e3f3e8;
+    --warn: #8a5a00;
+    --warn-bg: #fdf0d2;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121211;
+      --surface: #1a1a19;
+      --border: #2c2c2a;
+      --grid: #262624;
+      --text: #f0efec;
+      --text-2: #c3c2b7;
+      --text-3: #8e8d86;
+      --weather: #3987e5;
+      --co2: #199e70;
+      --accent: #5598e7;
+      --seq-lo: #1c3350;
+      --seq-hi: #9ec5f4;
+      --good: #6fd391;
+      --good-bg: #16301f;
+      --warn: #f1c25b;
+      --warn-bg: #352a10;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --border: #2c2c2a; --grid: #262624;
+    --text: #f0efec; --text-2: #c3c2b7; --text-3: #8e8d86;
+    --weather: #3987e5; --co2: #199e70; --accent: #5598e7;
+    --seq-lo: #1c3350; --seq-hi: #9ec5f4;
+    --good: #6fd391; --good-bg: #16301f; --warn: #f1c25b; --warn-bg: #352a10;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 48px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Header */
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); margin: 0 0 6px; }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -.01em; }
+  h1 .origin { color: var(--accent); }
+  .lede { margin: 8px 0 0; color: var(--text-2); max-width: 620px; }
+  .status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+  .badge.good { color: var(--good); background: var(--good-bg); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .updated { font-size: 13px; color: var(--text-3); }
+
+  /* Cards & grid */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: var(--shadow); min-width: 0; }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .card .sub { font-size: 13px; color: var(--text-3); margin: 2px 0 16px; }
+  .grid { display: grid; gap: 16px; }
+  .row-hero { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  .row-charts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 16px; }
+  @media (max-width: 880px) { .row-hero, .row-charts { grid-template-columns: 1fr; } }
+
+  /* Weight control */
+  .control { margin-bottom: 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+  @media (max-width: 720px) { .control { grid-template-columns: 1fr; gap: 12px; } }
+  .control h2 { margin-bottom: 2px; }
+  .slider-wrap { display: flex; align-items: center; gap: 12px; }
+  .pole { font-size: 13px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+  .pole .sw { width: 10px; height: 10px; border-radius: 3px; }
+  input[type=range] { flex: 1; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 999px; outline: none; cursor: pointer;
+    background: linear-gradient(90deg, var(--weather) 0%, var(--weather) var(--p, 50%), var(--co2) var(--p, 50%), var(--co2) 100%); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 2px solid var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+  input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 2px solid var(--text); }
+  input[type=range]:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .presets button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; }
+  .presets button:hover { border-color: var(--text-3); color: var(--text); }
+  .presets button.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .weights-label { font-size: 13px; color: var(--text-2); text-align: center; margin-top: 6px; }
+
+  /* Recommendation */
+  .pick-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .pick-rank { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .pick-city { font-family: Fraunces, Georgia, serif; font-size: 40px; line-height: 1.05; font-weight: 600; margin: 4px 0 2px; letter-spacing: -.01em; }
+  .pick-country { color: var(--text-2); }
+  .pick-score { text-align: right; }
+  .pick-score .big { font-size: 40px; font-weight: 700; line-height: 1; }
+  .pick-score .lbl { font-size: 12px; color: var(--text-3); }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+  .tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .tile .k { font-size: 12px; color: var(--text-3); }
+  .tile .v { font-size: 20px; font-weight: 600; }
+  .tile .v small { font-size: 13px; font-weight: 500; color: var(--text-2); }
+  .why h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--text-2); }
+  .meter { display: grid; grid-template-columns: 92px 1fr 40px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 6px; }
+  .meter .track { display: block; height: 8px; background: var(--grid); border-radius: 999px; overflow: hidden; }
+  .meter .fill { display: block; height: 100%; border-radius: 999px; }
+  .meter .val { text-align: right; color: var(--text-2); }
+  .runners { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); }
+  .runners b { color: var(--text); font-weight: 600; }
+
+  /* Map */
+  #map { height: 100%; min-height: 420px; border-radius: 10px; background: var(--grid); }
+  .map-card { display: flex; flex-direction: column; }
+  .map-card #map { flex: 1; }
+  .leaflet-container { font: inherit; }
+  .leaflet-tooltip.tt { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.15); padding: 8px 10px; }
+  .leaflet-tooltip.tt::before { display: none; }
+  .leaflet-tooltip.lbl { background: none; border: none; box-shadow: none; color: var(--text); font-weight: 700; font-size: 13px; padding: 0; text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface), 0 0 3px var(--surface); }
+  .leaflet-tooltip.lbl::before { display: none; }
+  .scale { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); margin-top: 10px; }
+  .scale .bar { width: 120px; height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--seq-lo), var(--seq-hi)); }
+
+  /* Ranking bars */
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-2); margin-bottom: 12px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .rank { list-style: none; margin: 0; padding: 0; }
+  .rank li { display: grid; grid-template-columns: 22px 104px 1fr 44px; gap: 8px; align-items: center; height: 24px; font-size: 13px; border-radius: 6px; cursor: default; }
+  .rank li:hover, .rank li.hl { background: var(--grid); }
+  .rank .pos { color: var(--text-3); text-align: right; }
+  .rank .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank li.first .name { font-weight: 700; }
+  .rank .bar { display: flex; gap: 2px; height: 12px; }
+  .rank .seg { height: 100%; transition: width .35s ease; }
+  .rank .seg.w { background: var(--weather); border-radius: 4px 0 0 4px; }
+  .rank .seg.c { background: var(--co2); border-radius: 0 4px 4px 0; }
+  .rank .score { text-align: right; font-weight: 600; }
+
+  /* Scatter */
+  #scatter { width: 100%; height: auto; display: block; overflow: visible; }
+  #scatter text { fill: var(--text-2); font-size: 11px; font-family: inherit; }
+  #scatter .axis-title { fill: var(--text-3); font-size: 12px; }
+  #scatter .gridline { stroke: var(--grid); }
+  #scatter .frontier { fill: none; stroke: var(--text-3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  #scatter .iso { stroke: var(--accent); stroke-width: 2; }
+  #scatter .iso-zone { fill: var(--accent); opacity: .07; }
+  #scatter .dot { stroke: var(--surface); stroke-width: 2; cursor: pointer; transition: r .15s; }
+  #scatter .dot.hl { stroke: var(--text); }
+  #scatter .pt-label { fill: var(--text); font-weight: 600; font-size: 12px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+
+  /* Tooltip (shared) */
+  #tip { position: fixed; pointer-events: none; z-index: 1000; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.15); padding: 8px 10px; font-size: 13px; opacity: 0; transition: opacity .1s; max-width: 240px; }
+  .tt-title { font-weight: 700; margin-bottom: 4px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 16px; color: var(--text-2); }
+  .tt-row b { color: var(--text); font-weight: 600; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { font-weight: 600; color: var(--text-2); cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+  th:hover { color: var(--text); }
+  th .arr { color: var(--accent); }
+  tbody tr:hover { background: var(--grid); }
+
+  details.method { margin-top: 16px; }
+  details.method summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details.method p, details.method li { color: var(--text-2); font-size: 14px; }
+  .msg { padding: 40px; text-align: center; color: var(--text-2); }
+  footer { margin-top: 24px; font-size: 12px; color: var(--text-3); text-align: center; }
 </style>
 </head>
 <body>
-  <h1>Best EU capital to visit next week, from <span id="origin">your origin</span></h1>
-  <p>Ranked by weather quality and CO&#8322; emissions of getting there — flight price is
-     deliberately not a factor.</p>
-  <div id="recommendation">Loading...</div>
-  <canvas id="rankChart" height="320"></canvas>
-  <canvas id="scatterChart" height="320"></canvas>
-  <p id="updated"></p>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Sustainable vacation · next 7 days</p>
+      <h1>Where to go next week from <span class="origin" id="origin">…</span></h1>
+      <p class="lede">The 27 EU capitals ranked by weather forecast and by the CO₂ of a round-trip flight. Flight price is deliberately not a factor.</p>
+    </div>
+    <div class="status">
+      <span class="badge" id="fresh"></span>
+      <span class="updated num" id="updated"></span>
+    </div>
+  </header>
+
+  <div id="app">
+    <section class="card control">
+      <div>
+        <h2>What matters more to you?</h2>
+        <p class="sub" style="margin:0">Move the slider — the whole page re-ranks.</p>
+      </div>
+      <div>
+        <div class="slider-wrap">
+          <span class="pole"><span class="sw" style="background:var(--weather)"></span>Weather</span>
+          <input type="range" id="w" min="0" max="100" step="5" value="50" aria-label="Weight of weather versus CO2">
+          <span class="pole">CO₂<span class="sw" style="background:var(--co2)"></span></span>
+        </div>
+        <div class="weights-label num" id="wlabel"></div>
+      </div>
+      <div class="presets" id="presets">
+        <button data-w="20">Planet first</button>
+        <button data-w="50">Balanced</button>
+        <button data-w="80">Sun first</button>
+      </div>
+    </section>
+
+    <div class="grid row-hero">
+      <section class="card" id="pick"></section>
+      <section class="card map-card">
+        <h2>On the map</h2>
+        <p class="sub">Bigger and darker = higher score. Line = trip to the recommended capital.</p>
+        <div id="map"></div>
+        <div class="scale"><span>Low score</span><span class="bar"></span><span>High score</span></div>
+      </section>
+    </div>
+
+    <div class="grid row-charts">
+      <section class="card">
+        <h2>Ranking — and why</h2>
+        <p class="sub">Each bar is the final score, split into what weather and CO₂ contribute.</p>
+        <div class="legend"><span><i style="background:var(--weather)"></i>Weather contribution</span><span><i style="background:var(--co2)"></i>CO₂ contribution</span></div>
+        <ol class="rank" id="rank"></ol>
+      </section>
+      <section class="card">
+        <h2>The trade-off</h2>
+        <p class="sub">Up = better weather, left = less CO₂. The best cities sit top-left.</p>
+        <svg id="scatter" viewBox="0 0 520 470" role="img" aria-label="Scatter plot of weather score against round-trip CO2"></svg>
+        <div class="legend" style="margin:8px 0 0">
+          <span><i style="background:var(--accent);height:2px;width:16px;border-radius:0"></i>Same score as the #1 — nothing beats the line</span>
+          <span><i style="border-top:2px dashed var(--text-3);height:0;width:16px;border-radius:0"></i>No-regret frontier</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px">
+      <h2>All the numbers</h2>
+      <p class="sub">Raw forecast values behind the scores. Click a column to sort.</p>
+      <div class="table-wrap"><table id="table"></table></div>
+    </section>
+
+    <section class="card method">
+      <details>
+        <summary>How the score is computed</summary>
+        <ul>
+          <li><b>Weather score</b> = average of three sub-scores: average max temperature, average sunshine, and total rain (inverted — less rain is better), over the next 7 days (Open-Meteo forecast).</li>
+          <li><b>CO₂ score</b>: great-circle distance from the origin × 2 (round trip) × <span id="ef"></span> kg CO₂e per passenger-km, inverted — less CO₂ is better.</li>
+          <li>Every measure is <b>normalized between the 27 capitals</b>: the best gets 1, the worst gets 0. A score is relative to this list, not an absolute grade.</li>
+          <li><b>Final score</b> = weather weight × weather score + CO₂ weight × CO₂ score. The published default is 50 / 50; the slider lets you test your own trade-off.</li>
+        </ul>
+      </details>
+    </section>
+  </div>
+
+  <footer>Data refreshed automatically every Monday by a GitHub Action · Weather: Open-Meteo</footer>
+</div>
+<div id="tip"></div>
 
 <script>
-fetch('data/rankings.json')
-  .then(r => r.json())
-  .then(data => {
-    const dest = data.destinations;
-    if (data.origin) {
-      document.getElementById('origin').textContent = data.origin;
-      document.title = `EU capitals — sustainable vacation ranking from ${data.origin}`;
-    }
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const tip = $('tip');
+  const fmt = (v, d = 0) => Number(v).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-    if (!dest || dest.length === 0) {
-      document.getElementById('recommendation').innerHTML =
-        '<p>No ranking data yet. The automated workflow hasn\'t completed a run ' +
-        'yet -- trigger it once from the repo\'s Actions tab ("Run workflow"), ' +
-        'then reload this page.</p>';
-      document.getElementById('updated').textContent = 'Status: ' + data.generated_at;
-      return;
-    }
+  let data, dest = [], w = 0.5, map, layer, sortKey = 'rank', sortDir = 1, hovered = null;
 
+  // ---------- tooltip ----------
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.style.opacity = 1;
+    const r = tip.getBoundingClientRect();
+    let left = x + 14, top = y + 14;
+    if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+    if (top + r.height > innerHeight - 8) top = y - r.height - 14;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  function hideTip() { tip.style.opacity = 0; }
+  function tipHtml(d) {
+    return `<div class="tt-title">#${d.rank} ${esc(d.capital)}, ${esc(d.country)}</div>` +
+      `<div class="tt-row">Final score <b class="num">${fmt(d.score, 2)}</b></div>` +
+      `<div class="tt-row">Weather score <b class="num">${fmt(d.weather_score, 2)}</b></div>` +
+      `<div class="tt-row">CO₂ score <b class="num">${fmt(d.co2_score, 2)}</b></div>` +
+      `<div class="tt-row">Max temp <b class="num">${fmt(d.avg_max_temp, 1)} °C</b></div>` +
+      `<div class="tt-row">Rain (7 days) <b class="num">${fmt(d.total_precip_mm, 1)} mm</b></div>` +
+      `<div class="tt-row">CO₂ round trip <b class="num">${fmt(d.co2_kg_roundtrip)} kg</b></div>`;
+  }
+
+  // ---------- colour scale (sequential, one hue) ----------
+  function hex2rgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); }
+  function seq(t) {
+    const a = hex2rgb(css('--seq-lo')), b = hex2rgb(css('--seq-hi'));
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * Math.max(0, Math.min(1, t))));
+    return `rgb(${c.join(',')})`;
+  }
+
+  // ---------- scoring ----------
+  function rescore() {
+    dest.forEach(d => {
+      d.wPart = w * d.weather_score;
+      d.cPart = (1 - w) * d.co2_score;
+      d.score = d.wPart + d.cPart;
+    });
+    dest.sort((a, b) => b.score - a.score);
+    dest.forEach((d, i) => d.rank = i + 1);
+    const lo = dest[dest.length - 1].score, hi = dest[0].score;
+    dest.forEach(d => d.t = hi === lo ? 0.5 : (d.score - lo) / (hi - lo));
+  }
+
+  // ---------- recommendation card ----------
+  function renderPick() {
     const top = dest[0];
+    const sunH = top.avg_sunshine_s / 3600;
+    const meter = (label, v, color) => v == null ? '' :
+      `<div class="meter"><span>${label}</span><span class="track"><span class="fill" style="width:${v * 100}%;background:${color}"></span></span><span class="val num">${fmt(v, 2)}</span></div>`;
+    $('pick').innerHTML = `
+      <div class="pick-top">
+        <div>
+          <div class="pick-rank">Recommended</div>
+          <div class="pick-city">${esc(top.capital)}</div>
+          <div class="pick-country">${esc(top.country)}</div>
+        </div>
+        <div class="pick-score"><div class="big num">${fmt(top.score, 2)}</div><div class="lbl">score / 1</div></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Average max temp</div><div class="v num">${fmt(top.avg_max_temp, 1)} <small>°C</small></div></div>
+        <div class="tile"><div class="k">Sunshine</div><div class="v num">${fmt(sunH, 1)} <small>h / day</small></div></div>
+        <div class="tile"><div class="k">Rain, next 7 days</div><div class="v num">${fmt(top.total_precip_mm, 1)} <small>mm</small></div></div>
+        <div class="tile"><div class="k">CO₂ round trip</div><div class="v num">${fmt(top.co2_kg_roundtrip)} <small>kg · ${fmt(top.distance_km)} km</small></div></div>
+      </div>
+      <div class="why">
+        <h3>Why it wins (0 = worst of the 27, 1 = best)</h3>
+        ${meter('Temperature', top.temp_score, 'var(--weather)')}
+        ${meter('Sunshine', top.sun_score, 'var(--weather)')}
+        ${meter('Little rain', top.rain_score, 'var(--weather)')}
+        ${meter('Low CO₂', top.co2_score, 'var(--co2)')}
+      </div>
+      <div class="runners">Next: ${dest.slice(1, 4).map(d => `<span><b>${d.rank}.</b> ${esc(d.capital)} <span class="num">(${fmt(d.score, 2)})</span></span>`).join(' · ')}</div>`;
+  }
 
-    document.getElementById('recommendation').innerHTML =
-      `<h2>Recommended: ${top.capital}, ${top.country}</h2>` +
-      `<p>Weather score ${top.weather_score.toFixed(2)}, CO&#8322; score ` +
-      `${top.co2_score.toFixed(2)} (${top.co2_kg_roundtrip} kg CO&#8322;e round trip, ` +
-      `${top.distance_km} km each way).</p>`;
-
-    document.getElementById('updated').textContent =
-      `Data last updated ${data.generated_at} -- emissions factor ` +
-      `${data.emissions_factor_kg_per_km} kg CO2e/passenger-km.`;
-
-    // Green (best) to red (worst) colour spectrum, shared by both charts, based
-    // on each destination's final_score relative to the others actually present.
-    function scoreToColor(t) {
-      const clamped = Math.max(0, Math.min(1, t));
-      const hue = 120 * clamped; // 0 = red, 120 = green
-      return `hsl(${hue.toFixed(0)}, 70%, 45%)`;
+  // ---------- map ----------
+  function tilesUrl() {
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light'
+      || document.documentElement.dataset.theme === 'dark';
+    return `https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`;
+  }
+  function initMap() {
+    map = L.map('map', { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+    L.tileLayer(tilesUrl(), {
+      subdomains: 'abcd', maxZoom: 8,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+    const pts = dest.map(d => [d.lat, d.lon]);
+    if (data.origin_lat != null) pts.push([data.origin_lat, data.origin_lon]);
+    map.fitBounds(pts, { padding: [24, 24] });
+  }
+  function renderMap() {
+    if (!map) return;
+    layer.clearLayers();
+    const top = dest[0];
+    if (data.origin_lat != null) {
+      L.polyline([[data.origin_lat, data.origin_lon], [top.lat, top.lon]], {
+        color: css('--accent'), weight: 2, dashArray: '6 6', opacity: .9
+      }).addTo(layer);
+      L.circleMarker([data.origin_lat, data.origin_lon], {
+        radius: 7, color: css('--surface'), weight: 2, fillColor: css('--text'), fillOpacity: 1
+      }).bindTooltip('Start: ' + esc(data.origin), { permanent: true, direction: 'bottom', className: 'lbl', offset: [0, 8] }).addTo(layer);
     }
-    function normalizeForColor(values) {
-      const lo = Math.min(...values);
-      const hi = Math.max(...values);
-      if (hi === lo) return values.map(() => 0.5);
-      return values.map(v => (v - lo) / (hi - lo));
-    }
-    const scoreNorm = normalizeForColor(dest.map(d => d.final_score));
-    const spectrumColors = scoreNorm.map(t => scoreToColor(t));
+    [...dest].reverse().forEach(d => {
+      const m = L.circleMarker([d.lat, d.lon], {
+        radius: 5 + d.t * 11, color: css('--surface'), weight: 2,
+        fillColor: seq(d.t), fillOpacity: .95
+      }).addTo(layer);
+      m.bindTooltip(tipHtml(d), { className: 'tt', direction: 'top', offset: [0, -6] });
+      if (d.rank <= 3) {
+        // put the label on the side away from its neighbours (west of Europe -> left)
+        const left = d.lon < -6;
+        m.bindTooltip(`${d.rank}. ${esc(d.capital)}`, { permanent: true, direction: left ? 'left' : 'right', className: 'lbl', offset: [left ? -10 : 10, 0] });
+      }
+      m.on('mouseover', () => highlight(d.capital));
+      m.on('mouseout', () => highlight(null));
+      m.on('click', () => m.openTooltip());
+    });
+  }
 
-    new Chart(document.getElementById('rankChart'), {
-      type: 'bar',
-      data: {
-        labels: dest.map(d => d.capital),
-        datasets: [{
-          label: 'Final score',
-          data: dest.map(d => d.final_score),
-          backgroundColor: spectrumColors
-        }]
-      },
-      options: {
-        plugins: {
-          legend: { display: false },
-          title: { display: true, text: `Ranking, all ${dest.length} destinations (green = best, red = worst)` },
-          tooltip: {
-            callbacks: {
-              title: (items) => {
-                const d = dest[items[0].dataIndex];
-                return `${d.capital}, ${d.country}`;
-              },
-              label: (item) => `Final score: ${item.parsed.y.toFixed(3)}`
-            }
-          }
-        }
+  // ---------- ranking bars ----------
+  function renderRank() {
+    const max = dest[0].score;
+    $('rank').innerHTML = dest.map(d => `
+      <li data-c="${esc(d.capital)}" class="${d.rank === 1 ? 'first' : ''}">
+        <span class="pos num">${d.rank}</span>
+        <span class="name">${esc(d.capital)}</span>
+        <span class="bar">
+          <span class="seg w" style="width:${d.wPart / max * 100}%"></span>
+          <span class="seg c" style="width:${d.cPart / max * 100}%"></span>
+        </span>
+        <span class="score num">${fmt(d.score, 2)}</span>
+      </li>`).join('');
+    $('rank').querySelectorAll('li').forEach(li => {
+      const d = dest.find(x => x.capital === li.dataset.c);
+      li.addEventListener('mousemove', e => { showTip(tipHtml(d), e.clientX, e.clientY); highlight(d.capital); });
+      li.addEventListener('mouseleave', () => { hideTip(); highlight(null); });
+    });
+  }
+
+  // ---------- scatter ----------
+  function renderScatter() {
+    const svg = $('scatter');
+    const W = 520, H = 470, m = { l: 48, r: 16, t: 16, b: 44 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const co2 = dest.map(d => d.co2_kg_roundtrip);
+    const cMin = Math.min(...co2), cMax = Math.max(...co2);
+    const xMax = Math.ceil(cMax / 100) * 100;
+    const x = v => m.l + (v / xMax) * iw;
+    const y = v => m.t + (1 - v) * ih;
+    // co2_score is linear in kg: s = (cMax - kg) / (cMax - cMin)  ->  kg = cMax - s * (cMax - cMin)
+    const kgOf = s => cMax - s * (cMax - cMin);
+
+    let g = '';
+    // grid + axes
+    for (let v = 0; v <= 1.0001; v += 0.25) {
+      g += `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/>`;
+      g += `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end" class="num">${fmt(v, 2)}</text>`;
+    }
+    const step = xMax > 600 ? 200 : 100;
+    for (let v = 0; v <= xMax; v += step) {
+      g += `<text x="${x(v)}" y="${H - m.b + 18}" text-anchor="middle" class="num">${v}</text>`;
+    }
+    g += `<text class="axis-title" x="${m.l + iw / 2}" y="${H - 6}" text-anchor="middle">CO₂ per passenger, round trip (kg) →  less is better</text>`;
+    g += `<text class="axis-title" transform="translate(12 ${m.t + ih / 2}) rotate(-90)" text-anchor="middle">Weather score →</text>`;
+
+    // iso-score line through #1: w*W + (1-w)*C = k  ->  W = (k - (1-w)*C) / w
+    const top = dest[0], k = top.score;
+    if (w > 0) {
+      const pts = [];
+      for (let s = 0; s <= 1.0001; s += 0.02) {
+        const ws = (k - (1 - w) * s) / w;
+        if (ws >= 0 && ws <= 1) pts.push([x(kgOf(s)), y(ws)]);
+      }
+      if (pts.length > 1) {
+        pts.sort((a, b) => a[0] - b[0]);
+        const zone = `M${pts.map(p => p.join(',')).join(' L')} L${pts[pts.length - 1][0]},${m.t} L${pts[0][0]},${m.t} Z`;
+        g += `<path class="iso-zone" d="${zone}"/>`;
+        g += `<polyline class="iso" fill="none" points="${pts.map(p => p.join(',')).join(' ')}"/>`;
+      }
+    } else {
+      g += `<line class="iso" x1="${x(top.co2_kg_roundtrip)}" x2="${x(top.co2_kg_roundtrip)}" y1="${m.t}" y2="${m.t + ih}"/>`;
+    }
+
+    // Pareto ("no-regret") frontier: no other city has both less CO2 and better weather
+    const byCo2 = [...dest].sort((a, b) => a.co2_kg_roundtrip - b.co2_kg_roundtrip);
+    const front = []; let best = -1;
+    byCo2.forEach(d => { if (d.weather_score > best) { front.push(d); best = d.weather_score; } });
+    let fp = '';
+    front.forEach((d, i) => {
+      const px = x(d.co2_kg_roundtrip), py = y(d.weather_score);
+      if (i === 0) fp += `M${px},${py}`;
+      else fp += ` L${px},${y(front[i - 1].weather_score)} L${px},${py}`;
+    });
+    g += `<path class="frontier" d="${fp}"/>`;
+
+    // dots (lowest score first so the best sit on top)
+    [...dest].reverse().forEach(d => {
+      g += `<circle class="dot" data-c="${esc(d.capital)}" cx="${x(d.co2_kg_roundtrip)}" cy="${y(d.weather_score)}" r="${d.rank <= 3 ? 8 : 6}" fill="${seq(d.t)}"/>`;
+    });
+    // labels: top 3 + frontier cities, greedy collision avoidance
+    const toLabel = dest.filter(d => d.rank <= 3 || front.includes(d));
+    const placed = [];
+    toLabel.forEach(d => {
+      const px = x(d.co2_kg_roundtrip), py = y(d.weather_score);
+      const wTxt = d.capital.length * 6.6 + 16;
+      const cands = [[px + 11, py + 4, 'start'], [px - 11, py + 4, 'end'], [px, py - 13, 'middle'], [px, py + 20, 'middle']];
+      for (const [lx, ly, a] of cands) {
+        const x0 = a === 'start' ? lx : a === 'end' ? lx - wTxt : lx - wTxt / 2;
+        const box = [x0, ly - 11, x0 + wTxt, ly + 3];
+        if (box[0] < m.l || box[2] > W - 2 || box[1] < 0) continue;
+        if (placed.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]))) continue;
+        placed.push(box);
+        g += `<text class="pt-label" x="${lx}" y="${ly}" text-anchor="${a}">${d.rank <= 3 ? d.rank + '. ' : ''}${esc(d.capital)}</text>`;
+        break;
       }
     });
-
-    new Chart(document.getElementById('scatterChart'), {
-      type: 'scatter',
-      data: {
-        datasets: [{
-          label: 'Weather vs CO2 (top-left is best)',
-          data: dest.map(d => ({ x: 1 - d.co2_score, y: d.weather_score })),
-          backgroundColor: spectrumColors,
-          pointRadius: 9,
-          pointHoverRadius: 13
-        }]
-      },
-      options: {
-        plugins: {
-          legend: { display: false },
-          title: { display: true, text: 'Trade-off: CO2 emissions vs weather quality (green = best overall, red = worst)' },
-          tooltip: {
-            callbacks: {
-              label: (item) => {
-                const d = dest[item.dataIndex];
-                return `${d.capital}, ${d.country}`;
-              }
-            }
-          }
-        },
-        scales: {
-          x: { title: { display: true, text: 'CO2 emissions (normalized, lower = better)' } },
-          y: { title: { display: true, text: 'Weather score (higher = better)' } }
-        }
-      }
+    svg.innerHTML = g;
+    svg.querySelectorAll('.dot').forEach(c => {
+      const d = dest.find(z => z.capital === c.dataset.c);
+      c.addEventListener('mousemove', e => { showTip(tipHtml(d), e.clientX, e.clientY); highlight(d.capital); });
+      c.addEventListener('mouseleave', () => { hideTip(); highlight(null); });
     });
-  })
-  .catch(err => {
-    document.getElementById('recommendation').innerHTML =
-      '<p>Could not load ranking data (' + err + '). Check that ' +
-      '<code>docs/data/rankings.json</code> exists in the repo and that GitHub ' +
-      'Pages is serving from the <code>/docs</code> folder.</p>';
-  });
+  }
+
+  // ---------- table ----------
+  const cols = [
+    ['rank', '#', d => d.rank, 0],
+    ['capital', 'Capital', d => d.capital],
+    ['score', 'Score', d => d.score, 2],
+    ['avg_max_temp', 'Max °C', d => d.avg_max_temp, 1],
+    ['sun', 'Sun h/day', d => d.avg_sunshine_s / 3600, 1],
+    ['total_precip_mm', 'Rain mm', d => d.total_precip_mm, 1],
+    ['distance_km', 'Distance km', d => d.distance_km, 0],
+    ['co2_kg_roundtrip', 'CO₂ kg', d => d.co2_kg_roundtrip, 0],
+  ];
+  function renderTable() {
+    const col = cols.find(c => c[0] === sortKey);
+    const rows = [...dest].sort((a, b) => {
+      const va = col[2](a), vb = col[2](b);
+      return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * sortDir;
+    });
+    $('table').innerHTML =
+      `<thead><tr>${cols.map(c => `<th data-k="${c[0]}" aria-sort="${c[0] === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${c[1]} ${c[0] === sortKey ? `<span class="arr">${sortDir > 0 ? '▲' : '▼'}</span>` : ''}</th>`).join('')}</tr></thead>` +
+      `<tbody>${rows.map(d => `<tr>${cols.map(c => {
+        const v = c[2](d);
+        return `<td class="${typeof v === 'number' ? 'num' : ''}">${typeof v === 'number' ? fmt(v, c[3]) : esc(v) + `<span style="color:var(--text-3)"> · ${esc(d.country)}</span>`}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>`;
+    $('table').querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+      const k = th.dataset.k;
+      if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = (k === 'rank' || k === 'capital' || k === 'total_precip_mm' || k === 'distance_km' || k === 'co2_kg_roundtrip') ? 1 : -1; }
+      renderTable();
+    }));
+  }
+
+  // ---------- linked highlight ----------
+  function highlight(c) {
+    if (c === hovered) return; hovered = c;
+    document.querySelectorAll('.rank li').forEach(li => li.classList.toggle('hl', li.dataset.c === c));
+    document.querySelectorAll('#scatter .dot').forEach(dot => {
+      const on = dot.dataset.c === c;
+      dot.classList.toggle('hl', on);
+      if (on) dot.parentNode.appendChild(dot);
+    });
+  }
+
+  // ---------- weight control ----------
+  function setWeight(pct) {
+    w = pct / 100;
+    $('w').value = pct;
+    $('w').style.setProperty('--p', pct + '%');
+    $('wlabel').textContent = `Weather ${pct}% · CO₂ ${100 - pct}%` + (pct === 50 ? ' (published default)' : '');
+    document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', +b.dataset.w === pct));
+    rescore(); renderPick(); renderMap(); renderRank(); renderScatter(); renderTable();
+  }
+
+  // ---------- header ----------
+  function renderHeader() {
+    const origin = data.origin || 'Paris';
+    $('origin').textContent = origin;
+    document.title = `Where to go next week from ${origin}`;
+    $('ef').textContent = data.emissions_factor_kg_per_km;
+    const t = new Date(data.generated_at);
+    const ok = !isNaN(t);
+    const ageDays = ok ? (Date.now() - t) / 86400000 : Infinity;
+    const fresh = $('fresh');
+    if (ageDays <= 8) { fresh.className = 'badge good'; fresh.textContent = '● Data up to date'; }
+    else { fresh.className = 'badge warn'; fresh.textContent = '▲ Data older than a week — pipeline may be stopped'; }
+    $('updated').textContent = ok
+      ? `Updated ${t.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`
+      : `Status: ${data.generated_at}`;
+  }
+
+  // ---------- boot ----------
+  fetch('data/rankings.json', { cache: 'no-cache' })
+    .then(r => r.json())
+    .then(json => {
+      data = json;
+      dest = (json.destinations || []).map(d => ({ ...d }));
+      renderHeader();
+      if (!dest.length) {
+        $('app').innerHTML = '<div class="card msg">No ranking data yet. Run the workflow once from the Actions tab, then reload.</div>';
+        return;
+      }
+      $('presets').querySelectorAll('button').forEach(b => b.addEventListener('click', () => setWeight(+b.dataset.w)));
+      $('w').addEventListener('input', e => setWeight(+e.target.value));
+      rescore();
+      try { initMap(); } catch (e) { $('map').innerHTML = '<div class="msg">Map unavailable offline.</div>'; }
+      setWeight(50);
+    })
+    .catch(err => {
+      $('app').innerHTML = `<div class="card msg">Could not load ranking data (${esc(err)}). Serve the <code>docs/</code> folder over HTTP (e.g. <code>python3 -m http.server</code>) rather than opening the file directly.</div>`;
+    });
+})();
 </script>
 </body>
 </html>

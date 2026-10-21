@@ -93,6 +93,7 @@ def main():
     co2_scores = normalize([d["co2_kg_roundtrip"] for d in destinations], invert=True)
 
     for d, t, s, rn, c in zip(destinations, temp_scores, sun_scores, rain_scores, co2_scores):
+        d["temp_score"], d["sun_score"], d["rain_score"] = round(t, 3), round(s, 3), round(rn, 3)
         d["weather_score"] = round((t + s + rn) / 3, 3)
         d["co2_score"] = round(c, 3)
         d["final_score"] = round((d["weather_score"] + d["co2_score"]) / 2, 3)
@@ -102,6 +103,8 @@ def main():
     output = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "origin": ORIGIN_NAME,
+        "origin_lat": ORIGIN_LAT,
+        "origin_lon": ORIGIN_LON,
         "emissions_factor_kg_per_km": EMISSIONS_FACTOR_KG_PER_KM,
         "destinations": destinations,
     }

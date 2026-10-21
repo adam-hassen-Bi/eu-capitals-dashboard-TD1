@@ -13,7 +13,7 @@ week while minimizing the CO₂ emissions of getting there?
 | Transformation | `scripts/fetch_and_score.py` — haversine distance, min-max normalization |
 | KPI | `final_score` = 50 % weather score + 50 % CO₂ score |
 | Storage | `docs/data/rankings.json`, committed on every run (history kept in Git) |
-| Visualization | `docs/index.html` — recommendation, ranked bar chart, weather vs CO₂ scatter |
+| Visualization | `docs/index.html` — recommendation card, map, weight slider, stacked ranking bars, weather vs CO₂ trade-off, sortable table |
 | Automation | `.github/workflows/update-data.yml` — every Monday 06:00 UTC + manual run |
 
 Answers to the TD questions are in [`REFLECTIONS.md`](REFLECTIONS.md).
