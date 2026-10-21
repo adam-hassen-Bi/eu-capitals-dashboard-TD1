@@ -3,7 +3,7 @@
 **TD1 · Business Intelligence** — an automated BI pipeline, from a live weather API to
 a public decision dashboard.
 
-**Live dashboard:** https://adam-hassen-bi.github.io/eu-capitals-dashboard/
+**Live dashboard:** https://adam-hassen-bi.github.io/eu-capitals-dashboard-Td1/
 
 > **The decision it supports:** which EU capital offers the best vacation conditions
 > next week, while minimizing the CO₂ emissions of getting there from Le Mans?
