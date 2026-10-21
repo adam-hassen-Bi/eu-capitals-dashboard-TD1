@@ -42,7 +42,13 @@ Valletta, Nicosia and Athens have the best weather but are the farthest; Madrid
 
 ## 6. Stage 6 — Was the prediction right?
 
-_To complete after the first run._
+Yes: the first run from Paris (21 October 2026) ranked **Madrid** first (final score
+0.754: weather 0.80, CO₂ 0.71), ahead of Lisbon and Rome. Lisbon actually had better
+weather (0.88), but its extra ~400 km cost more on the CO₂ side than it gained. So
+the prediction matched because I reasoned with the formula itself: with 50/50
+weights, a capital that is "good enough" on both criteria beats one that is
+excellent on only one — Brussels had the best CO₂ score (1.0) but only 0.23 for
+weather and finished 5th.
 
 ## 7. Stage 6 — Monitoring
 
@@ -55,4 +61,25 @@ notifications for failed workflow runs.
 
 ## 8. Stage 7 — Changing the origin
 
-_To complete after Stage 7._
+I chose **Le Mans** (48.0061, 0.1996) and changed two files:
+
+- `scripts/fetch_and_score.py`: replaced the hardcoded `PARIS_LAT, PARIS_LON` with
+  `ORIGIN_NAME`, `ORIGIN_LAT`, `ORIGIN_LON`, used them in the distance calculation
+  and in the exclusion filter, and wrote `origin` into `rankings.json`. Le Mans is not
+  in `capitals.csv`, so the exclusion removes nothing and Paris becomes a 27th
+  destination — the filter is kept so the script still works if the origin is a
+  capital.
+- `docs/index.html`: the title now reads the origin from `rankings.json` instead of
+  saying "Paris", and the chart title uses the real number of destinations instead
+  of a hardcoded 26.
+
+These are the right places because the origin is a parameter of the pipeline, not
+of the page: the script is the single place it is defined, and the page only
+displays what the data says, so changing the origin again means editing three
+values and nothing else.
+
+The "best" destination is relative to the starting point. Madrid stayed first from
+Le Mans (0.778), but the rest of the ranking moved: Paris, only 185 km away, jumped
+to 3rd with the best CO₂ score, and Brussels fell from 5th to 9th because it is now
+farther away. Changing the origin also changes the min and max distances used by
+`normalize()`, so every CO₂ score shifts even for capitals that are not closer.
