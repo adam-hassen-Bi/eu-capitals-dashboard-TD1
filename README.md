@@ -17,3 +17,10 @@ week while minimizing the CO₂ emissions of getting there?
 | Automation | `.github/workflows/update-data.yml` — every Monday 06:00 UTC + manual run |
 
 Answers to the TD questions are in [`REFLECTIONS.md`](REFLECTIONS.md).
+
+## Run it locally
+
+```bash
+python3 serve.py            # opens the dashboard on http://localhost:8000
+python3 serve.py --refresh  # recompute the ranking first (pip3 install requests)
+```
